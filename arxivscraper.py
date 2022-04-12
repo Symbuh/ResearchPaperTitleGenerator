@@ -6,6 +6,8 @@ import datetime
 import time
 import sys
 
+from numpy import save
+
 PYTHON3 - sys.version_info[0] == 3
 
 if PYTHON3:
@@ -105,3 +107,42 @@ class Scrapers(object):
             continue
           else:
             raise e
+
+        k += 1
+        xml = response.read()
+        root = ET.fromstring(xml)
+        records = root.findall(OAI + 'ListRecords/' + OAI + 'record')
+        for record in records:
+          meta = record.find(OAI + 'metadata').find(ARXIV + 'arXiv')
+          record = Record(meta).output()
+          if self.append_all:
+            ds.append(record)
+          else:
+            save_record = False
+            for key in self.keys:
+              for word in self.filters[key]:
+                if word in record[key]:
+                  save_record = True
+                  break
+
+            if save_record:
+              ds.append(record)
+
+        try:
+          token = root.find(OAI + 'ListRecords').find(OAI + 'resumptionToken')
+        except:
+          return 1
+
+        if token is None or token.text is None:
+          break
+        else:
+          url = BASE + 'resumptionToken=' % token.text
+
+    t1 = time.time()
+    print('fetring is completed in {0:.1f} seconds').format(t1 - t0)
+    print('Total number of records {:d}'.format(len(ds)))
+    return ds
+
+  def search_all(df, col, *words):
+    # This line is really gnarly and I need to look at it
+    return df[np.logical_and.reduce([df[col].str.contains(word) for word in words])]
